@@ -1,6 +1,5 @@
 # Inventory Management System
 
-<img src="https://raw.githubusercontent.com/Harsh971/inventory-management-system/refs/heads/master/structure.gif">
 
 This project is an end-to-end, full-stack inventory management system featuring:
 
