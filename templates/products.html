@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Products — Inventory Management System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Products</h1>
+  <p>Manage your product inventory.</p>
+</div>
+
+<!-- ── Add Product Form ── -->
+<div class="form-section">
+  <h2>Add New Product</h2>
+  <p class="sub">Add a new product to your inventory.</p>
+
+  <div id="product-notification" class="notification"></div>
+
+  <form id="add-product-form" novalidate>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="prod-name"><i data-lucide="tag"></i> Product Name</label>
+        <input type="text" id="prod-name" class="form-control"
+               placeholder="Enter product name" required maxlength="100" />
+      </div>
+      <div class="form-group">
+        <label for="prod-stock"><i data-lucide="layers"></i> Stock Quantity</label>
+        <input type="number" id="prod-stock" class="form-control"
+               placeholder="Enter stock quantity" required min="0" step="1" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="prod-price"><i data-lucide="dollar-sign"></i> Price</label>
+        <input type="number" id="prod-price" class="form-control"
+               placeholder="0.00" required min="0" step="0.01" />
+      </div>
+      <div class="form-group">
+        <label for="prod-desc"><i data-lucide="file-text"></i> Description <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+        <input type="text" id="prod-desc" class="form-control"
+               placeholder="Short description" maxlength="255" />
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="add-btn">
+      <i data-lucide="plus"></i> Add Product
+    </button>
+  </form>
+</div>
+
+<!-- ── Existing Products Table ── -->
+<div class="section-card">
+  <div class="section-card-header">
+    <h2>Existing Products</h2>
+    <button class="btn-refresh" id="refresh-products-btn">
+      <i data-lucide="refresh-cw"></i> Refresh
+    </button>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Price</th>
+        <th>Stock Quantity</th>
+      </tr>
+    </thead>
+    <tbody id="products-table-body">
+      <tr class="state-row"><td colspan="5"><span class="spinner"></span> Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+async function loadProducts() {
+  const tbody = document.getElementById('products-table-body');
+  tbody.innerHTML = loadingRow(5);
+  try {
+    const data = await apiGet('/api/report');
+    const products = data.products || [];
+    if (products.length === 0) {
+      tbody.innerHTML = emptyRow(5, 'No products found. Add one above.');
+      return;
+    }
+    tbody.innerHTML = products.map(p => `
+      <tr>
+        <td>${p.product_id}</td>
+        <td>${escHtml(p.name)}</td>
+        <td style="color:var(--text-muted);font-size:12.5px">${escHtml(p.description || '—')}</td>
+        <td>${p.price != null ? '\$' + parseFloat(p.price).toFixed(2) : '—'}</td>
+        <td>${stockDisplay(p.stock_quantity)}</td>
+      </tr>
+    `).join('');
+    lucide.createIcons();
+  } catch (err) {
+    tbody.innerHTML = errorRow(5, 'Failed to load products: ' + err.message);
+  }
+}
+
+document.getElementById('add-product-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const notif = document.getElementById('product-notification');
+  const btn   = document.getElementById('add-btn');
+
+  const name  = document.getElementById('prod-name').value.trim();
+  const stock = document.getElementById('prod-stock').value.trim();
+  const price = document.getElementById('prod-price').value.trim();
+  const desc  = document.getElementById('prod-desc').value.trim();
+
+  // Client-side validation
+  if (!name) {
+    showNotification(notif, 'Product name is required.', 'error');
+    document.getElementById('prod-name').focus();
+    return;
+  }
+  if (price === '' || isNaN(parseFloat(price)) || parseFloat(price) < 0) {
+    showNotification(notif, 'Please enter a valid price (0 or greater).', 'error');
+    document.getElementById('prod-price').focus();
+    return;
+  }
+  if (stock === '' || isNaN(parseInt(stock)) || parseInt(stock) < 0) {
+    showNotification(notif, 'Please enter a valid stock quantity (0 or greater).', 'error');
+    document.getElementById('prod-stock').focus();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Adding…';
+
+  try {
+    const result = await apiPost('/add_product', {
+      name:           name,
+      description:    desc,
+      price:          parseFloat(price),
+      stock_quantity: parseInt(stock)
+    });
+    showNotification(notif, `Product "${name}" added successfully (ID: ${result.product_id}).`, 'success');
+    document.getElementById('add-product-form').reset();
+    await loadProducts();
+  } catch (err) {
+    showNotification(notif, 'Failed to add product: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="plus"></i> Add Product';
+    lucide.createIcons({ nodes: [btn] });
+  }
+});
+
+document.getElementById('refresh-products-btn').addEventListener('click', loadProducts);
+
+document.addEventListener('DOMContentLoaded', loadProducts);
+</script>
+{% endblock %}
+

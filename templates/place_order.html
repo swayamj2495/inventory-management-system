@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}Place Order — Inventory Management System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Place a New Order</h1>
+  <p>Select products and quantities to place an order.</p>
+</div>
+
+<div class="form-section">
+  <div id="order-notification" class="notification"></div>
+
+  <form id="place-order-form" novalidate>
+
+    <!-- Customer ID -->
+    <div class="form-group" style="max-width:400px">
+      <label for="customer-id"><i data-lucide="user"></i> Customer ID</label>
+      <input type="number" id="customer-id" class="form-control"
+             placeholder="Enter customer ID" required min="1" step="1" />
+    </div>
+
+    <!-- Order Items -->
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text)">Order Items</h3>
+
+    <div style="overflow-x:auto">
+      <table class="order-items-table" id="order-items-table">
+        <thead>
+          <tr>
+            <th style="width:40%">Product</th>
+            <th style="width:20%">Available Stock</th>
+            <th style="width:20%">Quantity</th>
+            <th style="width:20%">Action</th>
+          </tr>
+        </thead>
+        <tbody id="order-items-body">
+          <!-- rows injected by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <button type="button" class="btn btn-outline btn-sm" id="add-item-btn" style="margin-bottom:20px">
+      <i data-lucide="plus"></i> Add Another Item
+    </button>
+
+    <br />
+
+    <button type="submit" class="btn btn-success" id="place-order-btn">
+      <i data-lucide="shopping-cart"></i> Place Order
+    </button>
+
+  </form>
+</div>
+
+<!-- Success confirmation -->
+<div id="order-success-card" class="form-section" style="display:none; border-color: var(--green);">
+  <div style="display:flex;align-items:center;gap:10px;color:var(--green);">
+    <i data-lucide="check-circle" style="width:24px;height:24px"></i>
+    <div>
+      <div style="font-size:16px;font-weight:700">Order Placed Successfully!</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:2px" id="success-order-id"></div>
+    </div>
+  </div>
+  <button type="button" class="btn btn-outline btn-sm" id="new-order-btn" style="margin-top:16px">
+    Place Another Order
+  </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allProducts = [];
+
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+// Build a product <select> element
+function buildProductSelect(selectedId) {
+  if (allProducts.length === 0) {
+    return '<span style="color:var(--text-muted);font-size:12.5px">No products available</span>';
+  }
+  const opts = allProducts.map(p => {
+    const sel = p.product_id === selectedId ? 'selected' : '';
+    return `<option value="${p.product_id}" data-stock="${p.stock_quantity}" ${sel}>
+              ${escHtml(p.name)}
+            </option>`;
+  }).join('');
+  return `<select class="form-control product-select">${opts}</select>`;
+}
+
+// Render a single order-item row
+function buildItemRow(product, qty) {
+  const stock = product ? product.stock_quantity : 0;
+  const stockClass = stock <= 0 ? 'low-stock' : (stock <= 5 ? 'warn-stock' : '');
+  return `
+    <tr class="order-item-row">
+      <td>${buildProductSelect(product ? product.product_id : null)}</td>
+      <td>
+        <span class="stock-avail ${stockClass}">${stock}</span>
+        <div class="stock-info">units available</div>
+      </td>
+      <td>
+        <input type="number" class="form-control qty-input"
+               value="${qty || 1}" min="1" step="1"
+               style="width:90px" />
+      </td>
+      <td>
+        <button type="button" class="btn btn-danger remove-item-btn">
+          <i data-lucide="trash-2"></i> Remove
+        </button>
+      </td>
+    </tr>
+  `;
+}
+
+function addItemRow(product, qty) {
+  const tbody = document.getElementById('order-items-body');
+  const tr = document.createElement('tr');
+  tr.className = 'order-item-row';
+
+  const stock = product ? product.stock_quantity : (allProducts[0] ? allProducts[0].stock_quantity : 0);
+  const stockClass = stock <= 0 ? 'low-stock' : (stock <= 5 ? 'warn-stock' : '');
+  const defaultProduct = product || allProducts[0];
+
+  tr.innerHTML = `
+    <td>${buildProductSelect(defaultProduct ? defaultProduct.product_id : null)}</td>
+    <td>
+      <span class="stock-avail ${stockClass}">${stock}</span>
+      <div class="stock-info">units available</div>
+    </td>
+    <td>
+      <input type="number" class="form-control qty-input"
+             value="${qty || 1}" min="1" step="1"
+             style="width:90px" />
+    </td>
+    <td>
+      <button type="button" class="btn btn-danger remove-item-btn">
+        <i data-lucide="trash-2"></i> Remove
+      </button>
+    </td>
+  `;
+
+  // Update stock display on product change
+  tr.querySelector('.product-select').addEventListener('change', function () {
+    const opt = this.options[this.selectedIndex];
+    const avail = parseInt(opt.getAttribute('data-stock')) || 0;
+    const stockSpan = tr.querySelector('.stock-avail');
+    stockSpan.textContent = avail;
+    stockSpan.className = 'stock-avail ' + (avail <= 0 ? 'low-stock' : avail <= 5 ? 'warn-stock' : '');
+  });
+
+  // Remove row (keep at least one)
+  tr.querySelector('.remove-item-btn').addEventListener('click', function () {
+    const allRows = document.querySelectorAll('#order-items-body .order-item-row');
+    if (allRows.length <= 1) {
+      showNotification(document.getElementById('order-notification'),
+        'You need at least one item in your order.', 'warning');
+      return;
+    }
+    tr.remove();
+  });
+
+  tbody.appendChild(tr);
+  lucide.createIcons({ nodes: [tr] });
+}
+
+async function loadOrderProducts() {
+  try {
+    const data = await apiGet('/api/report');
+    allProducts = (data.products || []).filter(p => p.stock_quantity > 0);
+    // Add initial row
+    document.getElementById('order-items-body').innerHTML = '';
+    addItemRow(allProducts[0] || null, 1);
+  } catch (err) {
+    document.getElementById('order-notification').innerHTML =
+      `<div class="notification notification-error show"><i data-lucide="alert-circle"></i> Failed to load products: ${err.message}</div>`;
+    lucide.createIcons();
+  }
+}
+
+document.getElementById('add-item-btn').addEventListener('click', function () {
+  if (allProducts.length === 0) {
+    showNotification(document.getElementById('order-notification'),
+      'No products with available stock to add.', 'warning');
+    return;
+  }
+  addItemRow(null, 1);
+});
+
+document.getElementById('place-order-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const notif      = document.getElementById('order-notification');
+  const submitBtn  = document.getElementById('place-order-btn');
+
+  const customerId = parseInt(document.getElementById('customer-id').value.trim());
+  if (!customerId || customerId < 1) {
+    showNotification(notif, 'Please enter a valid Customer ID.', 'error');
+    document.getElementById('customer-id').focus();
+    return;
+  }
+
+  // Collect items, deduplicate by product_id (sum quantities)
+  const rows = document.querySelectorAll('#order-items-body .order-item-row');
+  const itemMap = {};
+  let hasError = false;
+
+  rows.forEach(row => {
+    const sel = row.querySelector('.product-select');
+    const qtyInput = row.querySelector('.qty-input');
+    const productId = parseInt(sel.value);
+    const qty = parseInt(qtyInput.value);
+    const opt = sel.options[sel.selectedIndex];
+    const available = parseInt(opt.getAttribute('data-stock')) || 0;
+
+    if (!qty || qty < 1) {
+      showNotification(notif, 'Quantity must be at least 1 for all items.', 'error');
+      qtyInput.focus();
+      hasError = true;
+      return;
+    }
+    if (qty > available) {
+      showNotification(notif, `Requested quantity (${qty}) exceeds available stock (${available}) for "${opt.textContent.trim()}".`, 'error');
+      qtyInput.focus();
+      hasError = true;
+      return;
+    }
+    itemMap[productId] = (itemMap[productId] || 0) + qty;
+  });
+
+  if (hasError) return;
+
+  const items = Object.entries(itemMap).map(([pid, qty]) => ({
+    product_id: parseInt(pid),
+    quantity:   qty
+  }));
+
+  if (items.length === 0) {
+    showNotification(notif, 'Please add at least one item to your order.', 'error');
+    return;
+  }
+
+  // Prevent duplicate submission
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner"></span> Placing Order…';
+
+  try {
+    const result = await apiPost('/place_order', { customer_id: customerId, items });
+
+    // Show success card
+    document.getElementById('place-order-form').style.display = 'none';
+    const successCard = document.getElementById('order-success-card');
+    successCard.style.display = 'block';
+    document.getElementById('success-order-id').textContent =
+      `Your order #${result.order_id} has been placed and is now processing.`;
+    lucide.createIcons({ nodes: [successCard] });
+
+    // Reload products so stock numbers reflect the new order
+    await loadOrderProducts();
+
+  } catch (err) {
+    showNotification(notif, 'Order failed: ' + err.message, 'error');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i data-lucide="shopping-cart"></i> Place Order';
+    lucide.createIcons({ nodes: [submitBtn] });
+  }
+});
+
+document.getElementById('new-order-btn').addEventListener('click', function () {
+  document.getElementById('order-success-card').style.display = 'none';
+  document.getElementById('place-order-form').style.display = 'block';
+  document.getElementById('place-order-form').reset();
+  const placeBtn = document.getElementById('place-order-btn');
+  placeBtn.disabled = false;
+  placeBtn.innerHTML = '<i data-lucide="shopping-cart"></i> Place Order';
+  lucide.createIcons({ nodes: [placeBtn] });
+  // Re-render items with fresh stock
+  document.getElementById('order-items-body').innerHTML = '';
+  addItemRow(allProducts[0] || null, 1);
+});
+
+document.addEventListener('DOMContentLoaded', loadOrderProducts);
+</script>
+{% endblock %}
+

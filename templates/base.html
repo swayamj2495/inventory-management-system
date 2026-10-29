@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Inventory Management System{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <i data-lucide="box" class="sidebar-logo-icon"></i>
+        <span class="sidebar-title">Inventory Management System</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('dashboard') }}"
+           class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('products_page') }}"
+           class="nav-item {% if active_page == 'products' %}active{% endif %}">
+          <i data-lucide="package"></i>
+          <span>Products</span>
+        </a>
+        <a href="{{ url_for('place_order_page') }}"
+           class="nav-item {% if active_page == 'place_order' %}active{% endif %}">
+          <i data-lucide="shopping-cart"></i>
+          <span>Place Order</span>
+        </a>
+        <a href="{{ url_for('reports_page') }}"
+           class="nav-item {% if active_page == 'reports' %}active{% endif %}">
+          <i data-lucide="bar-chart-2"></i>
+          <span>Reports</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- ── Main Content ── -->
+    <main class="main-content">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      lucide.createIcons();
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
